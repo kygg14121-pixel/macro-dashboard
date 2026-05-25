@@ -9,8 +9,20 @@ import time
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Root .env (one level up from backend/)
-load_dotenv(Path(__file__).parent.parent / ".env")
+# ── 로컬 개발용 .env 로드 (Railway는 Variables 탭에서 주입 → override=False)
+for _env_candidate in [
+    Path(__file__).parent / ".env",          # backend/.env
+    Path(__file__).parent.parent / ".env",   # 루트 .env
+]:
+    if _env_candidate.exists():
+        load_dotenv(_env_candidate, override=False)
+        break
+
+
+def _env(key: str) -> str:
+    """항상 os.environ에서 직접 읽어 Railway 주입 타이밍 문제를 방지."""
+    return os.environ.get(key, "").strip()
+
 
 app = FastAPI(title="Macro Dashboard API")
 
@@ -28,24 +40,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-FRED_API_KEY = os.getenv("FRED_API_KEY", "")
-ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "")
-NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-
 
 # ---------------------------------------------------------------------------
-# Health
+# Health — 각 키 설정 여부 + 앞 4자리 힌트
 # ---------------------------------------------------------------------------
 
 @app.get("/health")
 async def health():
+    def key_status(val: str):
+        return {"set": bool(val), "hint": val[:4] + "****" if val else ""}
+
     return {
         "status": "ok",
-        "fred_key": bool(FRED_API_KEY),
-        "av_key": bool(ALPHA_VANTAGE_KEY),
-        "news_key": bool(NEWS_API_KEY),
-        "anthropic_key": bool(ANTHROPIC_API_KEY),
+        "env": {
+            "FRED_API_KEY":          key_status(_env("FRED_API_KEY")),
+            "ALPHA_VANTAGE_API_KEY": key_status(_env("ALPHA_VANTAGE_API_KEY")),
+            "NEWS_API_KEY":          key_status(_env("NEWS_API_KEY")),
+            "ANTHROPIC_API_KEY":     key_status(_env("ANTHROPIC_API_KEY")),
+        },
     }
 
 
@@ -55,11 +67,14 @@ async def health():
 
 @app.get("/api/fred/{series_id}")
 async def get_fred_series(series_id: str, limit: int = 60):
-    if not FRED_API_KEY:
-        raise HTTPException(status_code=500, detail="FRED_API_KEY not set")
+    fred_key = _env("FRED_API_KEY")
+    if not fred_key:
+        # 500 대신 빈 데이터 반환 — 프론트가 "데이터 없음" 으로 표시
+        return {"series_id": series_id, "data": [], "error": "FRED_API_KEY not configured"}
+
     url = (
         "https://api.stlouisfed.org/fred/series/observations"
-        f"?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json"
+        f"?series_id={series_id}&api_key={fred_key}&file_type=json"
         f"&sort_order=desc&limit={limit}"
     )
     async with httpx.AsyncClient(timeout=15) as client:
@@ -87,7 +102,7 @@ def _av_is_rate_limited(data: dict) -> bool:
 async def _av_commodity(symbol: str) -> dict:
     url = (
         f"https://www.alphavantage.co/query"
-        f"?function={symbol}&interval=monthly&apikey={ALPHA_VANTAGE_KEY}"
+        f"?function={symbol}&interval=monthly&apikey={_env('ALPHA_VANTAGE_API_KEY')}"
     )
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(url)
@@ -104,7 +119,8 @@ async def _av_commodity(symbol: str) -> dict:
 async def _av_stock_daily(symbol: str, limit: int = 30) -> dict:
     url = (
         f"https://www.alphavantage.co/query"
-        f"?function=TIME_SERIES_DAILY&symbol={symbol}&outputsize=compact&apikey={ALPHA_VANTAGE_KEY}"
+        f"?function=TIME_SERIES_DAILY&symbol={symbol}&outputsize=compact"
+        f"&apikey={_env('ALPHA_VANTAGE_API_KEY')}"
     )
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(url)
@@ -124,7 +140,8 @@ async def _av_stock_daily(symbol: str, limit: int = 30) -> dict:
 async def _av_fx_daily(from_sym: str, to_sym: str, limit: int = 30) -> dict:
     url = (
         f"https://www.alphavantage.co/query"
-        f"?function=FX_DAILY&from_symbol={from_sym}&to_symbol={to_sym}&apikey={ALPHA_VANTAGE_KEY}"
+        f"?function=FX_DAILY&from_symbol={from_sym}&to_symbol={to_sym}"
+        f"&apikey={_env('ALPHA_VANTAGE_API_KEY')}"
     )
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(url)
@@ -142,34 +159,29 @@ async def _av_fx_daily(from_sym: str, to_sym: str, limit: int = 30) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Market data cache — fetched in background, 15-min TTL
+# Market data cache — 백그라운드 15분 TTL
 # ---------------------------------------------------------------------------
 
 _market_cache: dict = {"data": None, "ts": 0.0, "fetching": False}
-_MARKET_TTL = 900  # 15 minutes
+_MARKET_TTL = 900
 
 
 async def _refresh_market_cache() -> None:
-    """
-    5 sequential calls with 13-second gaps to stay under AV free-tier 5 req/min.
-    Runs as a background coroutine so the HTTP endpoint never blocks.
-    """
     if _market_cache["fetching"]:
         return
     _market_cache["fetching"] = True
 
-    results = {}
     steps = [
         ("WTI",    lambda: _av_commodity("WTI")),
         ("COPPER", lambda: _av_commodity("COPPER")),
-        ("GOLD",   lambda: _av_stock_daily("GLD")),   # SPDR Gold ETF proxy
-        ("SILVER", lambda: _av_stock_daily("SLV")),   # iShares Silver Trust proxy
+        ("GOLD",   lambda: _av_stock_daily("GLD")),
+        ("SILVER", lambda: _av_stock_daily("SLV")),
         ("DXY",    lambda: _av_fx_daily("USD", "EUR")),
     ]
-
+    results = {}
     for i, (key, fetcher) in enumerate(steps):
         if i > 0:
-            await asyncio.sleep(13)   # 13s gap → stays within 5 req/min
+            await asyncio.sleep(13)
         try:
             results[key] = await fetcher()
         except Exception as e:
@@ -182,39 +194,28 @@ async def _refresh_market_cache() -> None:
 
 @app.on_event("startup")
 async def startup_event():
-    """서버 시작 시 백그라운드로 market 데이터 프리페치"""
     asyncio.create_task(_refresh_market_cache())
 
 
 @app.get("/api/market")
 async def get_market_data(refresh: bool = False):
-    """
-    캐시된 데이터를 즉시 반환 (백그라운드에서 15분마다 자동 갱신).
-    ?refresh=true 로 즉시 갱신 트리거 (완료까지 ~55초 소요).
-    """
-    if not ALPHA_VANTAGE_KEY:
+    if not _env("ALPHA_VANTAGE_API_KEY"):
         return {k: {"current": None, "history": []} for k in ["DXY", "WTI", "GOLD", "SILVER", "COPPER"]}
 
     now = time.time()
     cache_age = now - _market_cache["ts"]
 
-    # Force refresh requested or cache expired
     if refresh or (not _market_cache["data"]) or (cache_age > _MARKET_TTL):
         asyncio.create_task(_refresh_market_cache())
 
     if not _market_cache["data"]:
-        # Still loading after startup — return loading state
         return {
             "_loading": True,
             "_message": "데이터 수집 중... 약 60초 후 새로고침하세요",
             **{k: {"current": None, "history": []} for k in ["DXY", "WTI", "GOLD", "SILVER", "COPPER"]},
         }
 
-    return {
-        **_market_cache["data"],
-        "_cached": True,
-        "_age_seconds": int(cache_age),
-    }
+    return {**_market_cache["data"], "_cached": True, "_age_seconds": int(cache_age)}
 
 
 # ---------------------------------------------------------------------------
@@ -242,18 +243,19 @@ async def get_fear_greed():
 
 
 # ---------------------------------------------------------------------------
-# News  — Claude 요약은 키가 있을 때만
+# News — Claude 요약은 키가 있을 때만, 없으면 원문 반환
 # ---------------------------------------------------------------------------
 
 @app.get("/api/news")
 async def get_news():
-    if not NEWS_API_KEY:
-        raise HTTPException(status_code=500, detail="NEWS_API_KEY not set")
+    news_key = _env("NEWS_API_KEY")
+    if not news_key:
+        return {"articles": [], "summarized": False, "error": "NEWS_API_KEY not configured"}
 
     news_url = (
         "https://newsapi.org/v2/top-headlines"
         "?category=business&language=en&pageSize=10"
-        f"&apiKey={NEWS_API_KEY}"
+        f"&apiKey={news_key}"
     )
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(news_url)
@@ -278,12 +280,13 @@ async def get_news():
         for a in articles_data
     ]
 
-    if not ANTHROPIC_API_KEY:
+    anthropic_key = _env("ANTHROPIC_API_KEY")
+    if not anthropic_key:
         return {"articles": result, "summarized": False}
 
     try:
         import anthropic as _anthropic
-        claude = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        claude = _anthropic.Anthropic(api_key=anthropic_key)
         articles_text = "\n\n".join(
             f"{i+1}. 제목: {a['title']}\n   내용: {a['description']}"
             for i, a in enumerate(result)
