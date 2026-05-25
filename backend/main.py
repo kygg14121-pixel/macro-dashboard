@@ -16,6 +16,7 @@ app = FastAPI(title="Macro Dashboard API")
 
 ALLOWED_ORIGINS = [
     "https://macro-dashboard-nu-ten.vercel.app",
+    "https://macro-dashboard-production-3422.up.railway.app",
     "http://localhost:3000",
     "http://localhost:5173",
 ]
