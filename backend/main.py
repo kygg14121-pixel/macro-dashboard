@@ -61,6 +61,25 @@ async def health():
     }
 
 
+@app.get("/debug/env")
+async def debug_env():
+    """Railway에서 실제로 주입된 환경변수 키 목록 확인용 (값은 숨김)"""
+    all_keys = sorted(os.environ.keys())
+    app_keys = {
+        "FRED_API_KEY":          bool(_env("FRED_API_KEY")),
+        "ALPHA_VANTAGE_API_KEY": bool(_env("ALPHA_VANTAGE_API_KEY")),
+        "NEWS_API_KEY":          bool(_env("NEWS_API_KEY")),
+        "ANTHROPIC_API_KEY":     bool(_env("ANTHROPIC_API_KEY")),
+    }
+    # 키 이름에 API / KEY / TOKEN 포함된 것만 노출 (값은 숨김)
+    related_keys = [k for k in all_keys if any(w in k.upper() for w in ("API", "KEY", "TOKEN", "SECRET"))]
+    return {
+        "app_keys_found": app_keys,
+        "related_env_keys": related_keys,
+        "total_env_count": len(all_keys),
+    }
+
+
 # ---------------------------------------------------------------------------
 # FRED
 # ---------------------------------------------------------------------------
