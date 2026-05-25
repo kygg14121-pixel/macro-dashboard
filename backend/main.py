@@ -71,11 +71,9 @@ async def debug_env():
         "NEWS_API_KEY":          bool(_env("NEWS_API_KEY")),
         "ANTHROPIC_API_KEY":     bool(_env("ANTHROPIC_API_KEY")),
     }
-    # 키 이름에 API / KEY / TOKEN 포함된 것만 노출 (값은 숨김)
-    related_keys = [k for k in all_keys if any(w in k.upper() for w in ("API", "KEY", "TOKEN", "SECRET"))]
     return {
         "app_keys_found": app_keys,
-        "related_env_keys": related_keys,
+        "all_env_keys": all_keys,
         "total_env_count": len(all_keys),
     }
 
