@@ -10,8 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import axios from "axios";
-
-const API = import.meta.env.VITE_API_URL || "";
+import API from "../config.js";
 
 function getColor(value) {
   if (value <= 20) return "#ef4444";

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-
-const API = import.meta.env.VITE_API_URL || "";
+import API from "../config.js";
 
 function formatDate(iso) {
   if (!iso) return "";

@@ -9,8 +9,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import axios from "axios";
-
-const API = import.meta.env.VITE_API_URL || "";
+import API from "../config.js";
 
 const MARKET_ITEMS = [
   { key: "DXY", label: "달러인덱스 (USD/EUR)", color: "#6366f1", unit: "" },
