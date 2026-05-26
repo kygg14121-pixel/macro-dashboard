@@ -29,7 +29,8 @@ export default function TradingViewHeatmap() {
       isZoomEnabled: true,
       hasSymbolTooltip: true,
       isMonoSize: false,
-      autosize: true,
+      width: "100%",
+      height: 600,
     });
 
     containerRef.current.appendChild(script);
@@ -47,7 +48,7 @@ export default function TradingViewHeatmap() {
       <div className="card p-0 overflow-hidden rounded-xl">
         <div
           className="tradingview-widget-container"
-          style={{ height: 600, width: "100%" }}
+          style={{ height: 600, width: "100%", minHeight: 600 }}
         >
           <div
             ref={containerRef}
