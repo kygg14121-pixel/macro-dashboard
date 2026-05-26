@@ -16,8 +16,10 @@ const SERIES = [
     id: "CPIAUCSL",
     label: "CPI (소비자물가지수)",
     color: "#f59e0b",
-    unit: "",
-    description: "월별 YoY 기준",
+    unit: "%",
+    yoy: true,
+    fetchLimit: 84,
+    description: "전년 동월 대비 상승률",
   },
   {
     id: "UNRATE",
@@ -43,16 +45,37 @@ function ChartCard({ series }) {
   const [change, setChange] = useState(null);
 
   useEffect(() => {
+    const limit = series.yoy ? (series.fetchLimit || 84) : 60;
     axios
-      .get(`${API}/api/fred/${series.id}`)
+      .get(`${API}/api/fred/${series.id}?limit=${limit}`)
       .then((res) => {
         const obs = res.data.data;
-        setData(obs.map((o) => ({ date: o.date.slice(0, 7), value: parseFloat(o.value) })));
-        if (obs.length >= 2) {
-          const cur = parseFloat(obs[obs.length - 1].value);
-          const prev = parseFloat(obs[obs.length - 2].value);
-          setCurrent(cur);
-          setChange(cur - prev);
+
+        if (series.yoy) {
+          const raw = obs.map((o) => ({ date: o.date.slice(0, 7), value: parseFloat(o.value) }));
+          const yoyData = [];
+          for (let i = 12; i < raw.length; i++) {
+            const curr = raw[i].value;
+            const prev12 = raw[i - 12].value;
+            if (prev12 !== 0) {
+              yoyData.push({ date: raw[i].date, value: ((curr - prev12) / prev12) * 100 });
+            }
+          }
+          setData(yoyData);
+          if (yoyData.length >= 2) {
+            const cur = yoyData[yoyData.length - 1].value;
+            const prevYoy = yoyData[yoyData.length - 2].value;
+            setCurrent(cur);
+            setChange(cur - prevYoy);
+          }
+        } else {
+          setData(obs.map((o) => ({ date: o.date.slice(0, 7), value: parseFloat(o.value) })));
+          if (obs.length >= 2) {
+            const cur = parseFloat(obs[obs.length - 1].value);
+            const prev = parseFloat(obs[obs.length - 2].value);
+            setCurrent(cur);
+            setChange(cur - prev);
+          }
         }
       })
       .catch(() => setError("데이터 로드 실패"))
@@ -66,14 +89,16 @@ function ChartCard({ series }) {
         {current !== null && (
           <>
             <span className="text-2xl font-bold text-white">
-              {current.toFixed(2)}{series.unit}
+              {series.yoy
+                ? `${current.toFixed(1)}%`
+                : `${current.toFixed(2)}${series.unit}`}
             </span>
             <span
               className={`text-sm font-medium ${
                 change >= 0 ? "text-red-400" : "text-green-400"
               }`}
             >
-              {change >= 0 ? "▲" : "▼"} {Math.abs(change).toFixed(2)}
+              {change >= 0 ? "▲" : "▼"} {Math.abs(change).toFixed(series.yoy ? 1 : 2)}{series.yoy ? "pp" : ""}
             </span>
           </>
         )}
@@ -96,7 +121,10 @@ function ChartCard({ series }) {
               contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 8 }}
               labelStyle={{ color: "#9ca3af", fontSize: 11 }}
               itemStyle={{ color: series.color, fontSize: 12 }}
-              formatter={(v) => [`${v.toFixed(2)}${series.unit}`, series.label]}
+              formatter={(v) => [
+                series.yoy ? `${v.toFixed(1)}%` : `${v.toFixed(2)}${series.unit}`,
+                series.label,
+              ]}
             />
             <Line
               type="monotone"
