@@ -116,17 +116,17 @@ def _av_is_rate_limited(data: dict) -> bool:
     return any(k in data for k in ("Information", "Note", "Error Message"))
 
 
-async def _av_commodity(symbol: str) -> dict:
+async def _av_commodity(symbol: str, limit: int = 60) -> dict:
     url = (
         f"https://www.alphavantage.co/query"
-        f"?function={symbol}&interval=monthly&apikey={_env('ALPHA_VANTAGE_API_KEY')}"
+        f"?function={symbol}&interval=daily&apikey={_env('ALPHA_VANTAGE_API_KEY')}"
     )
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(url)
     data = resp.json()
     if _av_is_rate_limited(data):
         return {"current": None, "history": [], "rate_limited": True}
-    entries = [e for e in data.get("data", [])[:12] if e.get("value") not in (None, ".", "")]
+    entries = [e for e in data.get("data", [])[:limit] if e.get("value") not in (None, ".", "")]
     return {
         "current": float(entries[0]["value"]) if entries else None,
         "history": [{"date": e["date"], "value": float(e["value"])} for e in reversed(entries)],
