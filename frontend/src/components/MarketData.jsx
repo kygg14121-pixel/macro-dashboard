@@ -16,8 +16,14 @@ const MARKET_ITEMS = [
   { key: "WTI", label: "WTI 유가", color: "#f59e0b", unit: "$" },
   { key: "GOLD", label: "금 (GLD ETF)", color: "#fbbf24", unit: "$" },
   { key: "SILVER", label: "은 (SLV ETF)", color: "#94a3b8", unit: "$" },
-  { key: "COPPER", label: "구리 (CPER ETF)", color: "#b45309", unit: "$" },
+  { key: "COPPER", label: "구리", color: "#b45309", unit: "$" },
 ];
+
+const COPPER_SYMBOL_LABELS = {
+  CPER: "구리 (CPER ETF)",
+  JJC: "구리 (JJC ETF)",
+  COPPER_monthly: "구리 (월간 평균)",
+};
 
 function MarketCard({ item, data }) {
   const current = data?.current;
@@ -27,9 +33,15 @@ function MarketCard({ item, data }) {
   const change = current && prev ? current - prev : null;
   const pct = change && prev ? (change / prev) * 100 : null;
 
+  const symbol = data?._symbol;
+  const label = item.key === "COPPER" && symbol
+    ? (COPPER_SYMBOL_LABELS[symbol] ?? `구리 (${symbol})`)
+    : item.label;
+  const isMonthly = symbol === "COPPER_monthly";
+
   return (
     <div className="card">
-      <div className="card-title">{item.label}</div>
+      <div className="card-title">{label}</div>
       <div className="flex items-baseline gap-2 mb-2">
         {current !== null && current !== undefined ? (
           <>
@@ -64,7 +76,7 @@ function MarketCard({ item, data }) {
               contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 6, fontSize: 11 }}
               labelStyle={{ color: "#9ca3af" }}
               itemStyle={{ color: item.color }}
-              formatter={(v) => [`${item.unit}${v?.toFixed(2)}`, item.label]}
+              formatter={(v) => [`${item.unit}${v?.toFixed(2)}`, label]}
             />
             <Area
               type="monotone"
@@ -76,6 +88,11 @@ function MarketCard({ item, data }) {
             />
           </AreaChart>
         </ResponsiveContainer>
+      )}
+      {isMonthly && (
+        <p className="text-xs text-yellow-600 mt-1">
+          일단위 ETF 데이터 불가 — 월간 평균값 표시 중
+        </p>
       )}
     </div>
   );
