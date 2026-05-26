@@ -228,18 +228,31 @@ _market_cache: dict = {"data": None, "ts": 0.0, "fetching": False}
 _MARKET_TTL = 900
 
 
-async def _fetch_copper_daily() -> dict:
-    """CPER ETF → JJC ETF → COPPER 월간 순서로 시도."""
-    for sym in ("CPER", "JJC"):
-        try:
-            r = await _av_stock_daily(sym, limit=60)
-            if r.get("current") is not None:
-                return {**r, "_symbol": sym}
-        except Exception:
-            continue
-    # 마지막 폴백: Alpha Vantage COPPER 월간 데이터
-    r = await _av_commodity("COPPER")
-    return {**r, "_symbol": "COPPER_monthly"}
+async def _av_fred_copper() -> dict:
+    """FRED PCOPPUSDM — LME 구리 현물가 (USD/메트릭톤, 월간)"""
+    fred_key = _env("FRED_API_KEY")
+    if not fred_key:
+        return {"current": None, "history": [], "error": "FRED_API_KEY not set"}
+    url = (
+        "https://api.stlouisfed.org/fred/series/observations"
+        "?series_id=PCOPPUSDM&api_key=" + fred_key +
+        "&file_type=json&sort_order=desc&limit=24"
+    )
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(url)
+    data = resp.json()
+    obs = [
+        {"date": o["date"], "value": float(o["value"])}
+        for o in reversed(data.get("observations", []))
+        if o["value"] != "."
+    ]
+    if not obs:
+        return {"current": None, "history": []}
+    return {
+        "current": obs[-1]["value"],
+        "history": obs,
+        "_symbol": "LME_SPOT",
+    }
 
 
 async def _refresh_market_cache() -> None:
@@ -249,7 +262,7 @@ async def _refresh_market_cache() -> None:
 
     steps = [
         ("WTI",    lambda: _av_commodity("WTI")),
-        ("COPPER", _fetch_copper_daily),
+        ("COPPER", lambda: _av_fred_copper()),
         ("GOLD",   lambda: _av_stock_daily("GLD")),
         ("SILVER", lambda: _av_stock_daily("SLV")),
         ("DXY",    lambda: _av_fx_daily("USD", "EUR")),

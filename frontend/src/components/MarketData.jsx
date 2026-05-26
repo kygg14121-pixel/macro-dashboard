@@ -16,13 +16,14 @@ const MARKET_ITEMS = [
   { key: "WTI", label: "WTI 유가", color: "#f59e0b", unit: "$" },
   { key: "GOLD", label: "금 (GLD ETF)", color: "#fbbf24", unit: "$" },
   { key: "SILVER", label: "은 (SLV ETF)", color: "#94a3b8", unit: "$" },
-  { key: "COPPER", label: "구리", color: "#b45309", unit: "$" },
+  { key: "COPPER", label: "구리 (LME 현물)", color: "#b45309", unit: "" },
 ];
 
 const COPPER_SYMBOL_LABELS = {
   CPER: "구리 (CPER ETF)",
   JJC: "구리 (JJC ETF)",
   COPPER_monthly: "구리 (월간 평균)",
+  LME_SPOT: "구리 (LME 현물, USD/톤)",
 };
 
 function MarketCard({ item, data }) {
@@ -38,6 +39,7 @@ function MarketCard({ item, data }) {
     ? (COPPER_SYMBOL_LABELS[symbol] ?? `구리 (${symbol})`)
     : item.label;
   const isMonthly = symbol === "COPPER_monthly";
+  const isLmeSpot = item.key === "COPPER" && symbol === "LME_SPOT";
 
   return (
     <div className="card">
@@ -46,7 +48,9 @@ function MarketCard({ item, data }) {
         {current !== null && current !== undefined ? (
           <>
             <span className="text-xl font-bold text-white">
-              {item.unit}{typeof current === "number" ? current.toFixed(2) : current}
+              {isLmeSpot
+                ? current.toLocaleString("en-US", { maximumFractionDigits: 0 }) + " USD/톤"
+                : `${item.unit}${typeof current === "number" ? current.toFixed(2) : current}`}
             </span>
             {pct !== null && (
               <span className={`text-xs font-medium ${pct >= 0 ? "text-green-400" : "text-red-400"}`}>
