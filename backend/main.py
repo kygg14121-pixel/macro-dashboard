@@ -190,7 +190,7 @@ async def _refresh_market_cache() -> None:
 
     steps = [
         ("WTI",    lambda: _av_commodity("WTI")),
-        ("COPPER", lambda: _av_commodity("COPPER")),
+        ("COPPER", lambda: _av_stock_daily("CPER")),
         ("GOLD",   lambda: _av_stock_daily("GLD")),
         ("SILVER", lambda: _av_stock_daily("SLV")),
         ("DXY",    lambda: _av_fx_daily("USD", "EUR")),

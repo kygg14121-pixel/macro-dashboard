@@ -16,7 +16,7 @@ const MARKET_ITEMS = [
   { key: "WTI", label: "WTI 유가", color: "#f59e0b", unit: "$" },
   { key: "GOLD", label: "금 (GLD ETF)", color: "#fbbf24", unit: "$" },
   { key: "SILVER", label: "은 (SLV ETF)", color: "#94a3b8", unit: "$" },
-  { key: "COPPER", label: "구리 (Copper)", color: "#b45309", unit: "$" },
+  { key: "COPPER", label: "구리 (CPER ETF)", color: "#b45309", unit: "$" },
 ];
 
 function MarketCard({ item, data }) {
