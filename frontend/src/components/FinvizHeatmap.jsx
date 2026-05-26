@@ -4,11 +4,23 @@ export default function TradingViewHeatmap() {
   const containerRef = useRef(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
 
-    // Remove any previously injected script to allow re-mount
-    const prev = containerRef.current.querySelector("script");
-    if (prev) prev.remove();
+    // 컨테이너 완전 초기화
+    container.innerHTML = "";
+
+    // TradingView가 요구하는 내부 div
+    const widget = document.createElement("div");
+    widget.className = "tradingview-widget-container__widget";
+    widget.style.height = "calc(100% - 32px)";
+    widget.style.width = "100%";
+    container.appendChild(widget);
+
+    // copyright div (TradingView 필수)
+    const copyright = document.createElement("div");
+    copyright.className = "tradingview-widget-copyright";
+    container.appendChild(copyright);
 
     const script = document.createElement("script");
     script.src =
@@ -30,10 +42,14 @@ export default function TradingViewHeatmap() {
       hasSymbolTooltip: true,
       isMonoSize: false,
       width: "100%",
-      height: 600,
+      height: "600",
     });
 
-    containerRef.current.appendChild(script);
+    container.appendChild(script);
+
+    return () => {
+      container.innerHTML = "";
+    };
   }, []);
 
   return (
@@ -47,15 +63,10 @@ export default function TradingViewHeatmap() {
       </p>
       <div className="card p-0 overflow-hidden rounded-xl">
         <div
+          ref={containerRef}
           className="tradingview-widget-container"
           style={{ height: 600, width: "100%", minHeight: 600 }}
-        >
-          <div
-            ref={containerRef}
-            className="tradingview-widget-container__widget"
-            style={{ height: "100%", width: "100%" }}
-          />
-        </div>
+        />
         <div className="px-4 py-2 text-xs text-gray-500 border-t border-gray-700">
           출처:{" "}
           <a
