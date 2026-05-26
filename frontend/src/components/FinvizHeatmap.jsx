@@ -24,13 +24,12 @@ export default function TradingViewHeatmap() {
       locale: "en",
       symbolUrl: "",
       colorTheme: "dark",
-      hasTopBar: false,
-      isDataSetEnabled: false,
+      hasTopBar: true,
+      isDataSetEnabled: true,
       isZoomEnabled: true,
       hasSymbolTooltip: true,
       isMonoSize: false,
-      width: "100%",
-      height: 500,
+      autosize: true,
     });
 
     containerRef.current.appendChild(script);
@@ -45,11 +44,12 @@ export default function TradingViewHeatmap() {
       <div className="card p-0 overflow-hidden rounded-xl">
         <div
           className="tradingview-widget-container"
-          style={{ minHeight: 500 }}
+          style={{ height: 520 }}
         >
           <div
             ref={containerRef}
             className="tradingview-widget-container__widget"
+            style={{ height: "100%", width: "100%" }}
           />
         </div>
         <div className="px-4 py-2 text-xs text-gray-500 border-t border-gray-700">

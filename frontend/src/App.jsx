@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import FredCharts from "./components/FredChart";
 import MarketData from "./components/MarketData";
 import FearGreed from "./components/FearGreed";
@@ -18,21 +18,37 @@ function RefreshButton({ onClick, loading }) {
   );
 }
 
-export default function App() {
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const now = new Date().toLocaleString("ko-KR", {
+const AUTO_REFRESH_MS = 60_000;
+
+function formatNow() {
+  return new Date().toLocaleString("ko-KR", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+export default function App() {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [now, setNow] = useState(formatNow);
+
+  const doRefresh = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+    setNow(formatNow());
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(doRefresh, AUTO_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [doRefresh]);
 
   function handleRefresh() {
     setLoading(true);
     setTimeout(() => {
-      setRefreshKey((k) => k + 1);
+      doRefresh();
       setLoading(false);
     }, 300);
   }
