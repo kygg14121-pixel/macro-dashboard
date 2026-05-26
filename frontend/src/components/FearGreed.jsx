@@ -99,7 +99,11 @@ function GaugePanel({ label, data, loading, error }) {
     return (
       <div className="flex flex-col items-center gap-2 flex-1">
         <div className="text-sm font-semibold text-gray-300">{label}</div>
-        <div className="text-red-400 text-sm py-8">{error || "데이터 없음"}</div>
+        <div className="text-center text-red-400 text-xs py-6 px-2 leading-relaxed">
+          데이터 로드 실패
+          <br />
+          <span className="text-gray-500">RAPIDAPI_KEY 환경변수를 설정하면 대체 소스를 사용합니다</span>
+        </div>
       </div>
     );
   }
@@ -112,6 +116,8 @@ function GaugePanel({ label, data, loading, error }) {
     }),
     value: h.value,
   }));
+  const isSparse = historyData.length <= 6;
+  const xInterval = isSparse ? 0 : Math.floor(historyData.length / 5);
 
   return (
     <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
@@ -120,11 +126,14 @@ function GaugePanel({ label, data, loading, error }) {
       <span className="text-base font-bold" style={{ color }}>
         {getLabel(data.current_classification)}
       </span>
+      {data.source && (
+        <span className="text-xs text-gray-600">소스: {data.source}</span>
+      )}
       <div className="w-full">
         <ResponsiveContainer width="100%" height={110}>
           <LineChart data={historyData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-            <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#9ca3af" }} tickLine={false} interval={5} />
+            <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#9ca3af" }} tickLine={false} interval={xInterval} />
             <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
             <ReferenceLine y={25} stroke="#ef4444" strokeDasharray="3 3" />
             <ReferenceLine y={75} stroke="#22c55e" strokeDasharray="3 3" />
@@ -132,7 +141,7 @@ function GaugePanel({ label, data, loading, error }) {
               contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 6, fontSize: 11 }}
               formatter={(v) => [v, "지수"]}
             />
-            <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={isSparse ? { r: 3, fill: color } : false} />
           </LineChart>
         </ResponsiveContainer>
       </div>

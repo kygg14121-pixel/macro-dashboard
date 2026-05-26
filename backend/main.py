@@ -259,37 +259,152 @@ async def get_fear_greed():
     }
 
 
+_CNN_BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Origin": "https://edition.cnn.com",
+    "Referer": "https://edition.cnn.com/markets/fear-and-greed",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "cross-site",
+    "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
+}
+
+
+async def _try_cnn_dataviz() -> dict | None:
+    """CNN dataviz API 직접 호출."""
+    url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            resp = await client.get(url, headers=_CNN_BROWSER_HEADERS)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        fg = data.get("fear_and_greed", {})
+        if not fg.get("score"):
+            return None
+        historical_data = data.get("fear_and_greed_historical", {}).get("data", [])
+        history = [
+            {
+                "timestamp": str(int(h.get("x", 0) / 1000)),
+                "value": round(float(h.get("y", 0))),
+                "classification": h.get("rating", ""),
+            }
+            for h in historical_data[-30:]
+        ]
+        return {
+            "current_value": round(float(fg.get("score", 0))),
+            "current_classification": fg.get("rating", ""),
+            "history": history,
+            "source": "cnn",
+        }
+    except Exception:
+        return None
+
+
+async def _try_rapidapi_fng() -> dict | None:
+    """RapidAPI fear-and-greed-index 폴백 (RAPIDAPI_KEY 필요)."""
+    rapid_key = _env("RAPIDAPI_KEY")
+    if not rapid_key:
+        return None
+    url = "https://fear-and-greed-index.p.rapidapi.com/v1/fgi"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                url,
+                headers={
+                    "X-RapidAPI-Key": rapid_key,
+                    "X-RapidAPI-Host": "fear-and-greed-index.p.rapidapi.com",
+                },
+            )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        fgi = data.get("fgi", {})
+        current_value = round(float(fgi.get("value", 0)))
+        current_text = fgi.get("valueText", "")
+        now_ts = int(time.time())
+        snapshots = [
+            ("oneYearAgo",    now_ts - 365 * 86400),
+            ("oneMonthAgo",   now_ts -  30 * 86400),
+            ("oneWeekAgo",    now_ts -   7 * 86400),
+            ("previousClose", now_ts -       86400),
+        ]
+        history = []
+        for key, ts in snapshots:
+            pt = fgi.get(key) or {}
+            v = pt.get("value")
+            if v is not None:
+                history.append({
+                    "timestamp": str(ts),
+                    "value": round(float(v)),
+                    "classification": pt.get("valueText", ""),
+                })
+        history.append({"timestamp": str(now_ts), "value": current_value, "classification": current_text})
+        return {
+            "current_value": current_value,
+            "current_classification": current_text,
+            "history": history,
+            "source": "rapidapi",
+        }
+    except Exception:
+        return None
+
+
+async def _try_scrape_cnn_page() -> dict | None:
+    """CNN 페이지 HTML에서 __NEXT_DATA__ JSON 파싱 폴백."""
+    url = "https://edition.cnn.com/markets/fear-and-greed"
+    try:
+        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+            resp = await client.get(
+                url,
+                headers={
+                    "User-Agent": _CNN_BROWSER_HEADERS["User-Agent"],
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                },
+            )
+        if resp.status_code != 200:
+            return None
+        text = resp.text
+        # Next.js SSR data blob
+        m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', text, re.DOTALL)
+        blob = json.loads(m.group(1)) if m else {}
+        blob_str = json.dumps(blob) if blob else text
+        score_m = re.search(r'"score"\s*:\s*([\d.]+)', blob_str)
+        if not score_m:
+            # Fallback: search raw HTML
+            score_m = re.search(r'"score"\s*:\s*([\d.]+)', text)
+        if not score_m:
+            return None
+        rating_m = re.search(r'"rating"\s*:\s*"([^"]+)"', blob_str if blob else text)
+        score = round(float(score_m.group(1)))
+        rating = rating_m.group(1) if rating_m else ""
+        now_ts = int(time.time())
+        return {
+            "current_value": score,
+            "current_classification": rating,
+            "history": [{"timestamp": str(now_ts), "value": score, "classification": rating}],
+            "source": "scrape",
+        }
+    except Exception:
+        return None
+
+
 @app.get("/api/cnn-fear-greed")
 async def get_cnn_fear_greed():
-    url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json",
-        "Referer": "https://edition.cnn.com/",
-    }
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(url, headers=headers)
-        if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=f"CNN API: {resp.text[:200]}")
-        data = resp.json()
-
-    fg = data.get("fear_and_greed", {})
-    historical_data = data.get("fear_and_greed_historical", {}).get("data", [])
-
-    history = []
-    for h in historical_data[-30:]:
-        ts_ms = h.get("x", 0)
-        history.append({
-            "timestamp": str(int(ts_ms / 1000)),
-            "value": round(float(h.get("y", 0))),
-            "classification": h.get("rating", ""),
-        })
-
-    return {
-        "current_value": round(float(fg.get("score", 0))),
-        "current_classification": fg.get("rating", ""),
-        "history": history,
-    }
+    for fn in (_try_cnn_dataviz, _try_rapidapi_fng, _try_scrape_cnn_page):
+        result = await fn()
+        if result:
+            return result
+    raise HTTPException(
+        status_code=503,
+        detail="CNN Fear & Greed: 모든 소스 실패. RAPIDAPI_KEY 환경변수 설정을 확인하세요.",
+    )
 
 
 # ---------------------------------------------------------------------------
