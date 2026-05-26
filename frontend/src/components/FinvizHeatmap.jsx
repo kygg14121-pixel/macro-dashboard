@@ -41,10 +41,13 @@ export default function TradingViewHeatmap() {
         S&amp;P 500 섹터 히트맵{" "}
         <span className="text-xs text-gray-500 font-normal">(TradingView)</span>
       </h2>
+      <p className="text-xs text-gray-500 mb-2">
+        ※ 장중(미국 동부시간 9:30~16:00)에만 실시간 업데이트
+      </p>
       <div className="card p-0 overflow-hidden rounded-xl">
         <div
           className="tradingview-widget-container"
-          style={{ height: 520 }}
+          style={{ height: 600, width: "100%" }}
         >
           <div
             ref={containerRef}
