@@ -120,6 +120,13 @@ async def debug_copper():
         "keys_in_response": list(data.keys()),
     }
 
+    # 3) westmetall.com 스크래핑 진단
+    wm_url = "https://www.westmetall.com/en/markdaten.php?action=table&field=LME_Cu_cash"
+    async with httpx.AsyncClient(timeout=15) as client:
+        wm_resp = await client.get(wm_url, headers={"User-Agent": "Mozilla/5.0"})
+    results["westmetall_status"] = wm_resp.status_code
+    results["westmetall_preview"] = wm_resp.text[2000:3000]  # 파싱 디버그용
+
     return results
 
 
@@ -228,11 +235,50 @@ _market_cache: dict = {"data": None, "ts": 0.0, "fetching": False}
 _MARKET_TTL = 900
 
 
-async def _av_fred_copper() -> dict:
-    """FRED PCOPPUSDM — LME 구리 현물가 (USD/메트릭톤, 월간)"""
+async def _fetch_lme_copper() -> dict:
+    """westmetall.com에서 LME 구리 현물가 스크래핑 (일별, USD/톤)
+    폴백: FRED PCOPPUSDM (월간)
+    """
+    # 1차 시도: westmetall.com
+    try:
+        url = "https://www.westmetall.com/en/markdaten.php?action=table&field=LME_Cu_cash"
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code == 200:
+            # 날짜/가격 패턴: <td>DD.MM.YYYY</td><td>숫자</td>
+            rows = re.findall(
+                r'(\d{2}\.\d{2}\.\d{4})\s*</td>\s*<td[^>]*>\s*([\d,\.]+)\s*</td>',
+                resp.text
+            )
+            history = []
+            for date_str, val_str in rows[:60]:
+                try:
+                    d, m, y = date_str.split(".")
+                    iso = f"{y}-{m}-{d}"
+                    val = float(val_str.replace(",", "").replace(".", "").replace(" ", ""))
+                    # westmetall은 소수점이 쉼표: "9.834,50" → 9834.50
+                    # 또는 점이 천단위: "9,834.50"
+                    # 값이 100 미만이면 단위 오류
+                    if val < 100:
+                        continue
+                    history.append({"date": iso, "value": val})
+                except Exception:
+                    continue
+            if history:
+                history.reverse()  # 오래된 것부터
+                return {
+                    "current": history[-1]["value"],
+                    "history": history,
+                    "_symbol": "LME_SPOT",
+                    "_source": "westmetall",
+                }
+    except Exception:
+        pass
+
+    # 2차 폴백: FRED PCOPPUSDM (월간)
     fred_key = _env("FRED_API_KEY")
     if not fred_key:
-        return {"current": None, "history": [], "error": "FRED_API_KEY not set"}
+        return {"current": None, "history": [], "error": "no data source available"}
     url = (
         "https://api.stlouisfed.org/fred/series/observations"
         "?series_id=PCOPPUSDM&api_key=" + fred_key +
@@ -252,6 +298,7 @@ async def _av_fred_copper() -> dict:
         "current": obs[-1]["value"],
         "history": obs,
         "_symbol": "LME_SPOT",
+        "_source": "fred_monthly",
     }
 
 
@@ -262,7 +309,7 @@ async def _refresh_market_cache() -> None:
 
     steps = [
         ("WTI",    lambda: _av_commodity("WTI")),
-        ("COPPER", lambda: _av_fred_copper()),
+        ("COPPER", _fetch_lme_copper),
         ("GOLD",   lambda: _av_stock_daily("GLD")),
         ("SILVER", lambda: _av_stock_daily("SLV")),
         ("DXY",    lambda: _av_fx_daily("USD", "EUR")),
