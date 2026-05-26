@@ -16,12 +16,12 @@ const MARKET_ITEMS = [
   { key: "WTI", label: "WTI 유가", color: "#f59e0b", unit: "$" },
   { key: "GOLD", label: "금 (GLD ETF)", color: "#fbbf24", unit: "$" },
   { key: "SILVER", label: "은 (SLV ETF)", color: "#94a3b8", unit: "$" },
-  { key: "COPPER", label: "구리 (LME 현물)", color: "#b45309", unit: "" },
+  { key: "COPPER", label: "구리", color: "#b45309", unit: "$" },
 ];
 
 const COPPER_SYMBOL_LABELS = {
   CPER: "구리 (CPER ETF)",
-  JJC: "구리 (JJC ETF)",
+  JJC: "구리 (JJC ETF, LME연동)",
   COPPER_monthly: "구리 (월간 평균)",
   LME_SPOT: "구리 (LME 현물, USD/톤)",
 };

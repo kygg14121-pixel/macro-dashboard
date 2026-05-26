@@ -236,49 +236,19 @@ _MARKET_TTL = 900
 
 
 async def _fetch_lme_copper() -> dict:
-    """westmetall.com에서 LME 구리 현물가 스크래핑 (일별, USD/톤)
-    폴백: FRED PCOPPUSDM (월간)
-    """
-    # 1차 시도: westmetall.com
+    """JJC ETF (LME 구리 연동) → FRED PCOPPUSDM 월간 폴백"""
+    # 1차: JJC ETF (iPath Bloomberg Copper - LME 연동, USD/톤 환산)
     try:
-        url = "https://www.westmetall.com/en/markdaten.php?action=table&field=LME_Cu_cash"
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
-        if resp.status_code == 200:
-            # 날짜/가격 패턴: <td>DD.MM.YYYY</td><td>숫자</td>
-            rows = re.findall(
-                r'(\d{2}\.\d{2}\.\d{4})\s*</td>\s*<td[^>]*>\s*([\d,\.]+)\s*</td>',
-                resp.text
-            )
-            history = []
-            for date_str, val_str in rows[:60]:
-                try:
-                    d, m, y = date_str.split(".")
-                    iso = f"{y}-{m}-{d}"
-                    val = float(val_str.replace(",", "").replace(".", "").replace(" ", ""))
-                    # westmetall은 소수점이 쉼표: "9.834,50" → 9834.50
-                    # 또는 점이 천단위: "9,834.50"
-                    # 값이 100 미만이면 단위 오류
-                    if val < 100:
-                        continue
-                    history.append({"date": iso, "value": val})
-                except Exception:
-                    continue
-            if history:
-                history.reverse()  # 오래된 것부터
-                return {
-                    "current": history[-1]["value"],
-                    "history": history,
-                    "_symbol": "LME_SPOT",
-                    "_source": "westmetall",
-                }
+        r = await _av_stock_daily("JJC", limit=60)
+        if r.get("current") is not None:
+            return {**r, "_symbol": "JJC"}
     except Exception:
         pass
 
-    # 2차 폴백: FRED PCOPPUSDM (월간)
+    # 2차 폴백: FRED PCOPPUSDM (월간 LME 현물, USD/톤)
     fred_key = _env("FRED_API_KEY")
     if not fred_key:
-        return {"current": None, "history": [], "error": "no data source available"}
+        return {"current": None, "history": [], "error": "no data source"}
     url = (
         "https://api.stlouisfed.org/fred/series/observations"
         "?series_id=PCOPPUSDM&api_key=" + fred_key +
@@ -294,12 +264,7 @@ async def _fetch_lme_copper() -> dict:
     ]
     if not obs:
         return {"current": None, "history": []}
-    return {
-        "current": obs[-1]["value"],
-        "history": obs,
-        "_symbol": "LME_SPOT",
-        "_source": "fred_monthly",
-    }
+    return {"current": obs[-1]["value"], "history": obs, "_symbol": "LME_SPOT"}
 
 
 async def _refresh_market_cache() -> None:
