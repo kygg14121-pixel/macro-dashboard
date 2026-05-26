@@ -60,11 +60,11 @@ export default function App() {
         {/* 시장 데이터 */}
         <MarketData />
 
-        {/* Fear & Greed + News */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <FearGreed />
-          <NewsSection />
-        </div>
+        {/* Fear & Greed — 두 게이지 나란히 */}
+        <FearGreed />
+
+        {/* 뉴스 */}
+        <NewsSection />
 
         {/* Finviz 히트맵 */}
         <FinvizHeatmap />

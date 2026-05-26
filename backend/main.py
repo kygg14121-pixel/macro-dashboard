@@ -259,6 +259,39 @@ async def get_fear_greed():
     }
 
 
+@app.get("/api/cnn-fear-greed")
+async def get_cnn_fear_greed():
+    url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json",
+        "Referer": "https://edition.cnn.com/",
+    }
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(url, headers=headers)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=resp.status_code, detail=f"CNN API: {resp.text[:200]}")
+        data = resp.json()
+
+    fg = data.get("fear_and_greed", {})
+    historical_data = data.get("fear_and_greed_historical", {}).get("data", [])
+
+    history = []
+    for h in historical_data[-30:]:
+        ts_ms = h.get("x", 0)
+        history.append({
+            "timestamp": str(int(ts_ms / 1000)),
+            "value": round(float(h.get("y", 0))),
+            "classification": h.get("rating", ""),
+        })
+
+    return {
+        "current_value": round(float(fg.get("score", 0))),
+        "current_classification": fg.get("rating", ""),
+        "history": history,
+    }
+
+
 # ---------------------------------------------------------------------------
 # News — Claude 요약은 키가 있을 때만, 없으면 원문 반환
 # ---------------------------------------------------------------------------
