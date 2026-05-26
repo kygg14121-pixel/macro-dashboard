@@ -78,6 +78,51 @@ async def debug_env():
     }
 
 
+@app.get("/debug/copper")
+async def debug_copper():
+    """구리 데이터 소스 실시간 진단 — 각 심볼·엔드포인트 응답 확인용."""
+    av_key = _env("ALPHA_VANTAGE_API_KEY")
+    if not av_key:
+        return {"error": "ALPHA_VANTAGE_API_KEY not set"}
+
+    results = {}
+
+    # 1) TIME_SERIES_DAILY: CPER
+    for sym in ("CPER", "JJC"):
+        url = (
+            f"https://www.alphavantage.co/query"
+            f"?function=TIME_SERIES_DAILY&symbol={sym}&outputsize=compact&apikey={av_key}"
+        )
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(url)
+        data = resp.json()
+        ts = data.get("Time Series (Daily)", {})
+        dates = sorted(ts.keys(), reverse=True)[:2]
+        results[f"TIME_SERIES_DAILY_{sym}"] = {
+            "status": resp.status_code,
+            "rate_limited": _av_is_rate_limited(data),
+            "latest_dates": dates,
+            "latest_close": float(ts[dates[0]]["4. close"]) if dates else None,
+            "keys_in_response": list(data.keys()),
+        }
+        await asyncio.sleep(13)  # AV 무료 키 5 req/min 제한
+
+    # 2) COPPER function (daily interval)
+    url = f"https://www.alphavantage.co/query?function=COPPER&interval=daily&apikey={av_key}"
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(url)
+    data = resp.json()
+    entries = data.get("data", [])[:3]
+    results["COPPER_daily"] = {
+        "status": resp.status_code,
+        "rate_limited": _av_is_rate_limited(data),
+        "latest_entries": entries,
+        "keys_in_response": list(data.keys()),
+    }
+
+    return results
+
+
 # ---------------------------------------------------------------------------
 # FRED
 # ---------------------------------------------------------------------------
@@ -183,6 +228,20 @@ _market_cache: dict = {"data": None, "ts": 0.0, "fetching": False}
 _MARKET_TTL = 900
 
 
+async def _fetch_copper_daily() -> dict:
+    """CPER ETF → JJC ETF → COPPER 월간 순서로 시도."""
+    for sym in ("CPER", "JJC"):
+        try:
+            r = await _av_stock_daily(sym, limit=60)
+            if r.get("current") is not None:
+                return {**r, "_symbol": sym}
+        except Exception:
+            continue
+    # 마지막 폴백: Alpha Vantage COPPER 월간 데이터
+    r = await _av_commodity("COPPER")
+    return {**r, "_symbol": "COPPER_monthly"}
+
+
 async def _refresh_market_cache() -> None:
     if _market_cache["fetching"]:
         return
@@ -190,7 +249,7 @@ async def _refresh_market_cache() -> None:
 
     steps = [
         ("WTI",    lambda: _av_commodity("WTI")),
-        ("COPPER", lambda: _av_stock_daily("CPER")),
+        ("COPPER", _fetch_copper_daily),
         ("GOLD",   lambda: _av_stock_daily("GLD")),
         ("SILVER", lambda: _av_stock_daily("SLV")),
         ("DXY",    lambda: _av_fx_daily("USD", "EUR")),
