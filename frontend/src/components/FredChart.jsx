@@ -34,6 +34,7 @@ const SERIES = [
     color: "#3b82f6",
     unit: "%",
     description: "미 재무부 10년물",
+    daily: true,
   },
 ];
 
@@ -69,7 +70,10 @@ function ChartCard({ series }) {
             setChange(cur - prevYoy);
           }
         } else {
-          setData(obs.map((o) => ({ date: o.date.slice(0, 7), value: parseFloat(o.value) })));
+          setData(obs.map((o) => ({
+            date: series.daily ? o.date : o.date.slice(0, 7),
+            value: parseFloat(o.value),
+          })));
           if (obs.length >= 2) {
             const cur = parseFloat(obs[obs.length - 1].value);
             const prev = parseFloat(obs[obs.length - 2].value);
@@ -114,7 +118,7 @@ function ChartCard({ series }) {
               dataKey="date"
               tick={{ fontSize: 10, fill: "#9ca3af" }}
               tickLine={false}
-              interval={Math.floor(data.length / 5)}
+              interval={series.daily ? Math.floor(data.length / 8) : Math.floor(data.length / 5)}
             />
             <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
             <Tooltip
