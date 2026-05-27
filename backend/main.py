@@ -281,10 +281,31 @@ _MARKET_TTL = 900
 
 
 async def _fetch_lme_copper() -> dict:
-    """FRED PCOPPUSDM — LME 구리 현물가 (USD/메트릭톤, 월간)"""
+    """COMEX 구리 선물(HG) → FRED PCOPPUSDM 월간 폴백
+    HG는 USD/파운드 → USD/톤 환산: × 2204.62
+    LME와 99% 상관관계
+    """
+    # 1차: Alpha Vantage COMEX 구리 선물 HG (USD/파운드)
+    try:
+        r = await _av_stock_daily("HG", limit=60)
+        if r.get("current") is not None:
+            # USD/파운드 → USD/톤 변환
+            factor = 2204.62
+            return {
+                "current": round(r["current"] * factor, 0),
+                "history": [
+                    {"date": h["date"], "value": round(h["value"] * factor, 0)}
+                    for h in r["history"]
+                ],
+                "_symbol": "COMEX_HG",
+            }
+    except Exception:
+        pass
+
+    # 2차 폴백: FRED PCOPPUSDM (월간 LME 현물, USD/톤)
     fred_key = _env("FRED_API_KEY")
     if not fred_key:
-        return {"current": None, "history": [], "error": "FRED_API_KEY not set"}
+        return {"current": None, "history": [], "error": "no data source"}
     url = (
         "https://api.stlouisfed.org/fred/series/observations"
         "?series_id=PCOPPUSDM&api_key=" + fred_key +
@@ -300,11 +321,7 @@ async def _fetch_lme_copper() -> dict:
     ]
     if not obs:
         return {"current": None, "history": []}
-    return {
-        "current": obs[-1]["value"],
-        "history": obs,
-        "_symbol": "LME_SPOT",
-    }
+    return {"current": obs[-1]["value"], "history": obs, "_symbol": "LME_SPOT"}
 
 
 async def _refresh_market_cache() -> None:
