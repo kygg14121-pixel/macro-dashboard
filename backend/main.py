@@ -281,19 +281,10 @@ _MARKET_TTL = 900
 
 
 async def _fetch_lme_copper() -> dict:
-    """JJC ETF (LME 구리 연동) → FRED PCOPPUSDM 월간 폴백"""
-    # 1차: JJC ETF (iPath Bloomberg Copper - LME 연동, USD/톤 환산)
-    try:
-        r = await _av_stock_daily("JJC", limit=60)
-        if r.get("current") is not None:
-            return {**r, "_symbol": "JJC"}
-    except Exception:
-        pass
-
-    # 2차 폴백: FRED PCOPPUSDM (월간 LME 현물, USD/톤)
+    """FRED PCOPPUSDM — LME 구리 현물가 (USD/메트릭톤, 월간)"""
     fred_key = _env("FRED_API_KEY")
     if not fred_key:
-        return {"current": None, "history": [], "error": "no data source"}
+        return {"current": None, "history": [], "error": "FRED_API_KEY not set"}
     url = (
         "https://api.stlouisfed.org/fred/series/observations"
         "?series_id=PCOPPUSDM&api_key=" + fred_key +
@@ -309,7 +300,11 @@ async def _fetch_lme_copper() -> dict:
     ]
     if not obs:
         return {"current": None, "history": []}
-    return {"current": obs[-1]["value"], "history": obs, "_symbol": "LME_SPOT"}
+    return {
+        "current": obs[-1]["value"],
+        "history": obs,
+        "_symbol": "LME_SPOT",
+    }
 
 
 async def _refresh_market_cache() -> None:

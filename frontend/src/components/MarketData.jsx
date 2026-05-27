@@ -20,11 +20,13 @@ const MARKET_ITEMS = [
 ];
 
 const COPPER_SYMBOL_LABELS = {
-  CPER: "구리 (CPER ETF)",
-  JJC: "구리 (LME 현물, USD/톤)",
   COPPER_monthly: "구리 (월간 평균)",
   LME_SPOT: "구리 (LME 현물, USD/톤)",
 };
+
+function getCopperLabel(symbol) {
+  return COPPER_SYMBOL_LABELS[symbol] ?? (symbol ? `구리 (${symbol})` : "구리");
+}
 
 function MarketCard({ item, data }) {
   const current = data?.current;
@@ -35,11 +37,9 @@ function MarketCard({ item, data }) {
   const pct = change && prev ? (change / prev) * 100 : null;
 
   const symbol = data?._symbol;
-  const label = item.key === "COPPER" && symbol
-    ? (COPPER_SYMBOL_LABELS[symbol] ?? `구리 (${symbol})`)
-    : item.label;
+  const label = item.key === "COPPER" ? getCopperLabel(symbol) : item.label;
   const isMonthly = symbol === "COPPER_monthly";
-  const isLmeSpot = item.key === "COPPER" && (symbol === "LME_SPOT" || symbol === "JJC");
+  const isLmeSpot = item.key === "COPPER" && symbol === "LME_SPOT";
 
   return (
     <div className="card">
