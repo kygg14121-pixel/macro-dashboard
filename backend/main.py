@@ -78,12 +78,6 @@ async def debug_env():
     }
 
 
-@app.get("/debug/hg")
-async def debug_hg():
-    r = await _av_stock_daily("HG", limit=3)
-    return {"raw": r}
-
-
 @app.get("/debug/copper")
 async def debug_copper():
     """구리 데이터 소스 실시간 진단 — 각 심볼·엔드포인트 응답 확인용."""
@@ -287,28 +281,35 @@ _MARKET_TTL = 900
 
 
 async def _fetch_lme_copper() -> dict:
-    """COMEX 구리 선물(HG) → FRED PCOPPUSDM 월간 폴백
-    HG는 USD/파운드 → USD/톤 환산: × 2204.62
-    LME와 99% 상관관계
+    """Alpha Vantage COPPER 함수 (LME 현물 기반, USD/톤, 월간)
+    폴백: FRED PCOPPUSDM
     """
-    # 1차: Alpha Vantage COMEX 구리 선물 HG (USD/파운드)
+    # 1차: Alpha Vantage COPPER (monthly, USD/톤)
     try:
-        r = await _av_stock_daily("HG", limit=60)
-        if r.get("current") is not None:
-            # HG = USD/파운드 → USD/톤: × 2204.62
-            factor = 2204.62
+        av_key = _env("ALPHA_VANTAGE_API_KEY")
+        url = (
+            "https://www.alphavantage.co/query"
+            "?function=COPPER&interval=monthly&apikey=" + av_key
+        )
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(url)
+        data = resp.json()
+        raw = data.get("data", [])
+        obs = [
+            {"date": o["date"], "value": float(o["value"])}
+            for o in reversed(raw)
+            if o.get("value") and o["value"] != "."
+        ]
+        if obs and obs[-1]["value"] > 1000:
             return {
-                "current": round(r["current"] * factor, 0),
-                "history": [
-                    {"date": h["date"], "value": round(h["value"] * factor, 0)}
-                    for h in r["history"]
-                ],
-                "_symbol": "COMEX_HG",
+                "current": obs[-1]["value"],
+                "history": obs[-24:],
+                "_symbol": "LME_MONTHLY",
             }
     except Exception:
         pass
 
-    # 2차 폴백: FRED PCOPPUSDM (월간 LME 현물, USD/톤)
+    # 2차 폴백: FRED PCOPPUSDM
     fred_key = _env("FRED_API_KEY")
     if not fred_key:
         return {"current": None, "history": [], "error": "no data source"}
@@ -327,7 +328,7 @@ async def _fetch_lme_copper() -> dict:
     ]
     if not obs:
         return {"current": None, "history": []}
-    return {"current": obs[-1]["value"], "history": obs, "_symbol": "LME_SPOT"}
+    return {"current": obs[-1]["value"], "history": obs, "_symbol": "LME_MONTHLY"}
 
 
 async def _refresh_market_cache() -> None:

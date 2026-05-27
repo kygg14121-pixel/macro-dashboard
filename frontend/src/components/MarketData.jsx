@@ -26,6 +26,7 @@ const COPPER_SYMBOL_LABELS = {
 
 function getCopperLabel(symbol) {
   if (symbol === "COMEX_HG") return "구리 (COMEX, USD/톤)";
+  if (symbol === "LME_MONTHLY") return "구리 (LME, USD/톤)";
   return COPPER_SYMBOL_LABELS[symbol] ?? (symbol ? `구리 (${symbol})` : "구리");
 }
 
@@ -40,7 +41,7 @@ function MarketCard({ item, data }) {
   const symbol = data?._symbol;
   const label = item.key === "COPPER" ? getCopperLabel(symbol) : item.label;
   const isMonthly = symbol === "COPPER_monthly";
-  const isLmeSpot = item.key === "COPPER" && (symbol === "LME_SPOT" || symbol === "COMEX_HG");
+  const isLmeSpot = item.key === "COPPER" && (symbol === "LME_SPOT" || symbol === "COMEX_HG" || symbol === "LME_MONTHLY");
 
   return (
     <div className="card">
