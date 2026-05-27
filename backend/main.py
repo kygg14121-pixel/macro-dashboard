@@ -289,8 +289,8 @@ async def _fetch_lme_copper() -> dict:
     try:
         r = await _av_stock_daily("HG", limit=60)
         if r.get("current") is not None:
-            # USD/파운드 → USD/톤 변환
-            factor = 2204.62
+            # HG = 센트/파운드 → USD/톤: ÷100 × 2204.62
+            factor = 2204.62 / 100
             return {
                 "current": round(r["current"] * factor, 0),
                 "history": [
