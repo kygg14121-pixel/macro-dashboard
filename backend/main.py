@@ -363,7 +363,10 @@ async def get_market_data(refresh: bool = False):
     now = time.time()
     cache_age = now - _market_cache["ts"]
 
-    if refresh or (not _market_cache["data"]) or (cache_age > _MARKET_TTL):
+    if refresh:
+        _market_cache["data"] = None
+        _market_cache["ts"] = 0.0
+    if (not _market_cache["data"]) or (cache_age > _MARKET_TTL):
         asyncio.create_task(_refresh_market_cache())
 
     if not _market_cache["data"]:
