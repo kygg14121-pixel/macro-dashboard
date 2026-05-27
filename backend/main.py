@@ -161,6 +161,51 @@ async def get_fred_series(series_id: str, limit: int = 60):
 
 
 # ---------------------------------------------------------------------------
+# VIX
+# ---------------------------------------------------------------------------
+
+@app.get("/api/vix")
+async def get_vix():
+    fred_key = _env("FRED_API_KEY")
+    if not fred_key:
+        return {"current": None, "history": [], "error": "FRED_API_KEY not configured"}
+    url = (
+        "https://api.stlouisfed.org/fred/series/observations"
+        "?series_id=VIXCLS&api_key=" + fred_key +
+        "&file_type=json&sort_order=desc&limit=60"
+    )
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(url)
+    data = resp.json()
+    obs = [
+        {"date": o["date"], "value": float(o["value"])}
+        for o in reversed(data.get("observations", []))
+        if o["value"] != "."
+    ]
+    if not obs:
+        return {"current": None, "history": []}
+    current = obs[-1]["value"]
+    if current >= 30:
+        level = "극단적 공포"
+        level_color = "extreme_fear"
+    elif current >= 20:
+        level = "불안"
+        level_color = "fear"
+    elif current >= 12:
+        level = "정상"
+        level_color = "normal"
+    else:
+        level = "과열 (과매도 경보)"
+        level_color = "greed"
+    return {
+        "current": current,
+        "history": obs,
+        "level": level,
+        "level_color": level_color,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Alpha Vantage — helpers
 # ---------------------------------------------------------------------------
 

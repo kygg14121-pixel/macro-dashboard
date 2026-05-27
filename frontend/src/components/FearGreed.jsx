@@ -149,6 +149,59 @@ function GaugePanel({ label, data, loading, error }) {
   );
 }
 
+function VixPanel({ data, loading, error }) {
+  if (loading) return (
+    <div className="flex flex-col items-center gap-2 flex-1">
+      <div className="text-sm font-semibold text-gray-300">VIX 공포지수</div>
+      <div className="text-gray-500 text-sm py-8">로딩 중...</div>
+    </div>
+  );
+  if (error || !data?.current) return (
+    <div className="flex flex-col items-center gap-2 flex-1">
+      <div className="text-sm font-semibold text-gray-300">VIX 공포지수</div>
+      <div className="text-red-400 text-xs py-6">데이터 로드 실패</div>
+    </div>
+  );
+
+  const levelColors = {
+    extreme_fear: "#ef4444",
+    fear: "#f97316",
+    normal: "#22c55e",
+    greed: "#a78bfa",
+  };
+  const color = levelColors[data.level_color] || "#9ca3af";
+  const historyData = data.history.map((h) => ({ date: h.date, value: h.value }));
+
+  return (
+    <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
+      <div className="text-sm font-semibold text-gray-300">VIX 공포지수</div>
+      <div className="flex flex-col items-center mt-2 mb-1">
+        <span className="text-4xl font-bold text-white">{data.current.toFixed(2)}</span>
+        <span className="text-sm font-semibold mt-1" style={{ color }}>{data.level}</span>
+      </div>
+      <div className="text-xs text-gray-500 mb-1">
+        &lt;12 과열 · 12~20 정상 · 20~30 불안 · &gt;30 극단적 공포
+      </div>
+      <div className="w-full">
+        <ResponsiveContainer width="100%" height={110}>
+          <LineChart data={historyData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+            <XAxis dataKey="date" hide />
+            <YAxis domain={["auto", "auto"]} tick={{ fontSize: 9, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
+            <ReferenceLine y={20} stroke="#f97316" strokeDasharray="3 3" />
+            <ReferenceLine y={30} stroke="#ef4444" strokeDasharray="3 3" />
+            <Tooltip
+              contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 6, fontSize: 11 }}
+              formatter={(v) => [v.toFixed(2), "VIX"]}
+            />
+            <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 export default function FearGreed() {
   const [cryptoData, setCryptoData] = useState(null);
   const [cnnData, setCnnData] = useState(null);
@@ -156,6 +209,9 @@ export default function FearGreed() {
   const [cnnLoading, setCnnLoading] = useState(true);
   const [cryptoError, setCryptoError] = useState(null);
   const [cnnError, setCnnError] = useState(null);
+  const [vixData, setVixData] = useState(null);
+  const [vixLoading, setVixLoading] = useState(true);
+  const [vixError, setVixError] = useState(null);
 
   useEffect(() => {
     axios
@@ -169,6 +225,11 @@ export default function FearGreed() {
       .then((res) => setCnnData(res.data))
       .catch(() => setCnnError("데이터 로드 실패"))
       .finally(() => setCnnLoading(false));
+
+    axios.get(`${API}/api/vix`)
+      .then((res) => setVixData(res.data))
+      .catch(() => setVixError("데이터 로드 실패"))
+      .finally(() => setVixLoading(false));
   }, []);
 
   return (
@@ -188,6 +249,8 @@ export default function FearGreed() {
           loading={cryptoLoading}
           error={cryptoError}
         />
+        <div className="hidden sm:block w-px bg-gray-700 self-stretch" />
+        <VixPanel data={vixData} loading={vixLoading} error={vixError} />
       </div>
     </div>
   );
