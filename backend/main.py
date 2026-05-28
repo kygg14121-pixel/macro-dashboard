@@ -78,6 +78,12 @@ async def debug_env():
     }
 
 
+@app.get("/debug/dxy")
+async def debug_dxy():
+    r = await _av_stock_daily("DX-Y.NYB", limit=3)
+    return {"raw": r}
+
+
 @app.get("/debug/copper")
 async def debug_copper():
     """구리 데이터 소스 실시간 진단 — 각 심볼·엔드포인트 응답 확인용."""
