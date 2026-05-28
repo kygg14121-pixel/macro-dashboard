@@ -341,7 +341,7 @@ async def _refresh_market_cache() -> None:
         ("COPPER", _fetch_lme_copper),
         ("GOLD",   lambda: _av_stock_daily("GLD")),
         ("SILVER", lambda: _av_stock_daily("SLV")),
-        ("DXY",    lambda: _av_fx_daily("USD", "EUR")),
+        ("DXY",    lambda: _av_stock_daily("DX-Y.NYB", limit=60)),
     ]
     results = {}
     for i, (key, fetcher) in enumerate(steps):

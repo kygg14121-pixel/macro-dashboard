@@ -12,7 +12,7 @@ import axios from "axios";
 import API from "../config.js";
 
 const MARKET_ITEMS = [
-  { key: "DXY", label: "달러인덱스 (USD/EUR)", color: "#6366f1", unit: "" },
+  { key: "DXY", label: "달러인덱스 (DXY)", color: "#6366f1", unit: "" },
   { key: "WTI", label: "WTI 유가", color: "#f59e0b", unit: "$" },
   { key: "GOLD", label: "금 (GLD ETF)", color: "#fbbf24", unit: "$" },
   { key: "SILVER", label: "은 (SLV ETF)", color: "#94a3b8", unit: "$" },
