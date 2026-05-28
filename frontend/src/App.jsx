@@ -4,6 +4,7 @@ import MarketData from "./components/MarketData";
 import FearGreed from "./components/FearGreed";
 import NewsSection from "./components/NewsSection";
 import FinvizHeatmap from "./components/FinvizHeatmap";
+import FomcSchedule from "./components/FomcSchedule";
 
 function RefreshButton({ onClick, loading }) {
   return (
@@ -75,6 +76,9 @@ export default function App() {
 
         {/* 시장 데이터 */}
         <MarketData />
+
+        {/* FOMC 일정 + 기준금리 */}
+        <FomcSchedule />
 
         {/* Fear & Greed — 두 게이지 나란히 */}
         <FearGreed />

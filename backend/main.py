@@ -631,6 +631,65 @@ async def get_news():
         return {"articles": result, "summarized": False, "claude_error": str(e)[:100]}
 
 
+# ---------------------------------------------------------------------------
+# FOMC 일정 + 기준금리
+# ---------------------------------------------------------------------------
+
+@app.get("/api/fomc")
+async def get_fomc():
+    schedule = [
+        {"date": "2026-01-28", "end_date": "2026-01-29"},
+        {"date": "2026-03-18", "end_date": "2026-03-19"},
+        {"date": "2026-05-06", "end_date": "2026-05-07"},
+        {"date": "2026-06-17", "end_date": "2026-06-18"},
+        {"date": "2026-07-29", "end_date": "2026-07-30"},
+        {"date": "2026-09-16", "end_date": "2026-09-17"},
+        {"date": "2026-11-04", "end_date": "2026-11-05"},
+        {"date": "2026-12-16", "end_date": "2026-12-17"},
+    ]
+
+    fred_key = _env("FRED_API_KEY")
+    current_rate = None
+    rate_date = None
+    if fred_key:
+        try:
+            url = (
+                "https://api.stlouisfed.org/fred/series/observations"
+                "?series_id=FEDFUNDS&api_key=" + fred_key +
+                "&file_type=json&sort_order=desc&limit=6"
+            )
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.get(url)
+            obs = resp.json().get("observations", [])
+            valid = [o for o in obs if o["value"] != "."]
+            if valid:
+                current_rate = float(valid[0]["value"])
+                rate_date = valid[0]["date"]
+        except Exception:
+            pass
+
+    from datetime import date
+    today = date.today()
+    past = []
+    upcoming = []
+    for m in schedule:
+        end = date.fromisoformat(m["end_date"])
+        start = date.fromisoformat(m["date"])
+        days_until = (start - today).days
+        item = {**m, "days_until": days_until}
+        if end < today:
+            past.append(item)
+        else:
+            upcoming.append(item)
+
+    return {
+        "current_rate": current_rate,
+        "rate_date": rate_date,
+        "past": past[-3:],
+        "upcoming": upcoming[:3],
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
