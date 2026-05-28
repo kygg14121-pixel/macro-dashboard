@@ -655,7 +655,7 @@ async def get_fomc():
         try:
             url = (
                 "https://api.stlouisfed.org/fred/series/observations"
-                "?series_id=FEDFUNDS&api_key=" + fred_key +
+                "?series_id=DFEDTARL&api_key=" + fred_key +
                 "&file_type=json&sort_order=desc&limit=6"
             )
             async with httpx.AsyncClient(timeout=15) as client:

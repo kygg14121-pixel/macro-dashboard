@@ -41,7 +41,7 @@ export default function FomcSchedule() {
           {data?.rate_date && (
             <div className="text-xs text-gray-500 mt-1">{data.rate_date} 기준</div>
           )}
-          <div className="text-xs text-gray-500 mt-2">FRED FEDFUNDS</div>
+          <div className="text-xs text-gray-500 mt-2">FRED (목표금리 하단 기준)</div>
         </div>
 
         {/* 지난 일정 */}
