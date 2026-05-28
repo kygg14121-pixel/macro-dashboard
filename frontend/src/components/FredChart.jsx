@@ -22,6 +22,15 @@ const SERIES = [
     description: "전년 동월 대비 상승률",
   },
   {
+    id: "PCEPI",
+    label: "PCE (개인소비지출 물가)",
+    color: "#10b981",
+    unit: "%",
+    yoy: true,
+    fetchLimit: 84,
+    description: "Fed 선호 인플레이션 지표",
+  },
+  {
     id: "UNRATE",
     label: "실업률",
     color: "#ef4444",
@@ -149,7 +158,7 @@ export default function FredCharts() {
   return (
     <section>
       <h2 className="text-lg font-bold text-white mb-3">FRED 거시지표</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {SERIES.map((s) => (
           <ChartCard key={s.id} series={s} />
         ))}
