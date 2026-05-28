@@ -36,12 +36,14 @@ export default function FomcSchedule() {
         <div className="card flex flex-col items-center justify-center text-center">
           <div className="card-title mb-2">현재 기준금리 (FFR)</div>
           <div className="text-5xl font-bold text-blue-400 mb-1">
-            {data?.current_rate != null ? `${data.current_rate.toFixed(2)}%` : "N/A"}
+            {data?.rate_lower != null && data?.rate_upper != null
+              ? `${data.rate_lower.toFixed(2)}~${data.rate_upper.toFixed(2)}%`
+              : "N/A"}
           </div>
           {data?.rate_date && (
             <div className="text-xs text-gray-500 mt-1">{data.rate_date} 기준</div>
           )}
-          <div className="text-xs text-gray-500 mt-2">FRED (목표금리 하단 기준)</div>
+          <div className="text-xs text-gray-500 mt-2">FRED DFEDTARL·DFEDTARU</div>
         </div>
 
         {/* 지난 일정 */}

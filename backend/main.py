@@ -649,22 +649,26 @@ async def get_fomc():
     ]
 
     fred_key = _env("FRED_API_KEY")
-    current_rate = None
+    rate_lower = None
+    rate_upper = None
     rate_date = None
     if fred_key:
         try:
-            url = (
-                "https://api.stlouisfed.org/fred/series/observations"
-                "?series_id=DFEDTARL&api_key=" + fred_key +
-                "&file_type=json&sort_order=desc&limit=6"
-            )
             async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.get(url)
-            obs = resp.json().get("observations", [])
-            valid = [o for o in obs if o["value"] != "."]
-            if valid:
-                current_rate = float(valid[0]["value"])
-                rate_date = valid[0]["date"]
+                r1 = await client.get(
+                    "https://api.stlouisfed.org/fred/series/observations"
+                    "?series_id=DFEDTARL&api_key=" + fred_key +
+                    "&file_type=json&sort_order=desc&limit=3"
+                )
+                r2 = await client.get(
+                    "https://api.stlouisfed.org/fred/series/observations"
+                    "?series_id=DFEDTARU&api_key=" + fred_key +
+                    "&file_type=json&sort_order=desc&limit=3"
+                )
+            obs1 = [o for o in r1.json().get("observations", []) if o["value"] != "."]
+            obs2 = [o for o in r2.json().get("observations", []) if o["value"] != "."]
+            if obs1: rate_lower = float(obs1[0]["value"]); rate_date = obs1[0]["date"]
+            if obs2: rate_upper = float(obs2[0]["value"])
         except Exception:
             pass
 
@@ -683,7 +687,8 @@ async def get_fomc():
             upcoming.append(item)
 
     return {
-        "current_rate": current_rate,
+        "rate_lower": rate_lower,
+        "rate_upper": rate_upper,
         "rate_date": rate_date,
         "past": past[-3:],
         "upcoming": upcoming[:3],
